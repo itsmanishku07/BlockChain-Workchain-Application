@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Job {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  budget      String
+  category    String
+  skills      String[]
+  status      String   @default("Open")
+  createdAt   DateTime @default(now())
+}
+
+model UserProfile {
+  id          String   @id // Firebase UID
+  name        String
+  title       String?  @default("Web3 Specialist")
+  bio         String?
+  hourlyRate  String?  @default("0.00")
+  location    String?  @default("Global")
+  website     String?
+  github      String?
+  skills      String[]
+  updatedAt   DateTime @updatedAt
+}

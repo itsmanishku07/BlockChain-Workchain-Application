@@ -1,0 +1,24 @@
+{
+  "name": "message-dapp",
+  "version": "1.0.0",
+  "description": "A simple blockchain message application",
+  "scripts": {
+    "test": "truffle test",
+    "compile": "truffle compile",
+    "migrate": "truffle migrate",
+    "setup": "node scripts/deploy-and-setup.js",
+    "start": "http-server public -p 3001 -o",
+    "dev": "npm run setup && npm start"
+  },
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "truffle",
+    "dapp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
