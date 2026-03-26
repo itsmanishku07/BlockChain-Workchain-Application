@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useWeb3 } from "../context/Web3Context";
 import { useAuth } from "../context/AuthContext";
 import { Briefcase, CreditCard, Star, Activity, AlertCircle, Loader2, User } from "lucide-react";
@@ -8,6 +8,7 @@ import { formatEther } from "ethers";
 const Dashboard = () => {
   const { account, contract, isClient, balance } = useWeb3();
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
 
   const [activeJobs, setActiveJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,10 +29,11 @@ const Dashboard = () => {
           const job = await contract.jobs(i);
           // If client, fetch jobs they posted
           if (isClient && job.client.toLowerCase() === account.toLowerCase()) {
+            const proposalCount = Number(job.status) === 0 ? (await contract.getJobProposals(i)).length : 0;
             userJobs.push({
               id: Number(job.id),
               title: job.title,
-              milestonesCompleted: "-", // complex to fetch all without events
+              proposals: proposalCount,
               amount: formatEther(job.budget) + " ETH",
               status: Number(job.status) === 0 ? "Open" : Number(job.status) === 1 ? "In Progress" : "Completed"
             });
@@ -42,7 +44,7 @@ const Dashboard = () => {
             userJobs.push({
               id: Number(job.id),
               title: job.title,
-              milestonesCompleted: "-",
+              proposals: 0,
               amount: formatEther(job.budget) + " ETH",
               status: Number(job.status) === 0 ? "Open" : Number(job.status) === 1 ? "In Progress" : "Completed"
             });
@@ -145,16 +147,24 @@ const Dashboard = () => {
                 </h3>
                 <p className="text-sm text-black dark:text-slate-400 mt-1">
                   Budget: <span className="font-semibold text-black dark:text-slate-300">{job.amount}</span>
+                  {isClient && job.status === "Open" && job.proposals > 0 && (
+                    <span className="ml-4 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full text-xs">
+                      {job.proposals} New Application{job.proposals > 1 ? 's' : ''}!
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="flex items-center space-x-3">
-                <span className={`badge ${job.status === "InProgress" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" :
+                <span className={`badge ${job.status === "In Progress" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" :
                   job.status === "Completed" ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300" :
-                    "bg-slate-100 text-black dark:bg-slate-800 dark:text-slate-300"
+                    "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300"
                   }`}>
                   {job.status}
                 </span>
-                <button className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition lg:ml-4">
+                <button 
+                  onClick={() => navigate(job.status === "Open" ? `/jobs/${job.id}` : `/workspace/${job.id}`)}
+                  className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition lg:ml-4 text-black dark:text-white"
+                >
                   View
                 </button>
               </div>

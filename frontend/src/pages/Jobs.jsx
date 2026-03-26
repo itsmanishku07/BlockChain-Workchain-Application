@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useWeb3 } from "../context/Web3Context";
 import { Search, Filter, Coins, Loader2, AlertCircle } from "lucide-react";
 import { formatEther } from "ethers";
 
 const Jobs = () => {
   const { contract, account } = useWeb3();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [availableJobs, setAvailableJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +135,11 @@ const Jobs = () => {
                 <span className="ml-3 text-black font-medium dark:text-slate-400">Loading jobs from blockchain...</span>
               </div>
             ) : filteredJobs.map(job => (
-              <div key={job.id} className="glass-card p-6 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer border-l-4 border-l-transparent hover:border-l-blue-500">
+              <div 
+                key={job.id} 
+                onClick={() => navigate(`/jobs/${job.id}`)}
+                className="glass-card p-6 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer border-l-4 border-l-transparent hover:border-l-blue-500"
+              >
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                   <div className="space-y-2 w-full md:w-3/4">
                     <div className="flex justify-between items-start">

@@ -29,7 +29,7 @@ app.get('/api/jobs', async (req, res) => {
 app.post('/api/jobs', async (req, res) => {
   try {
     const { title, description, budget, category, skills } = req.body;
-    
+
     const newJob = await prisma.job.create({
       data: {
         title,
@@ -39,7 +39,7 @@ app.post('/api/jobs', async (req, res) => {
         skills
       }
     });
-    
+
     res.status(201).json(newJob);
   } catch (error) {
     console.error("Error creating job:", error);
@@ -65,7 +65,7 @@ app.get('/api/profile/:uid', async (req, res) => {
 app.put('/api/profile/:uid', async (req, res) => {
   try {
     const { name, title, bio, hourlyRate, location, website, github, skills } = req.body;
-    
+
     const profile = await prisma.userProfile.upsert({
       where: { id: req.params.uid },
       update: { name, title, bio, hourlyRate, location, website, github, skills },

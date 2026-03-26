@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
 import Profile from "./pages/Profile";
 import PostJob from "./pages/PostJob";
+import JobDetails from "./pages/JobDetails";
+import Workspace from "./pages/Workspace";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 
@@ -44,6 +46,12 @@ function App() {
               } />
               <Route path="/post-job" element={
                 <PrivateRoute><PostJob /></PrivateRoute>
+              } />
+              <Route path="/jobs/:id" element={
+                <PrivateRoute><JobDetails /></PrivateRoute>
+              } />
+              <Route path="/workspace/:id" element={
+                <PrivateRoute><Workspace /></PrivateRoute>
               } />
             </Routes>
           </main>
