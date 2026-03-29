@@ -1,10 +1,13 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { BrowserProvider, Contract } from "ethers";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import { BrowserProvider, Contract, formatEther } from "ethers";
 import FreelanceMarketplaceV2 from "../contracts/FreelanceMarketplaceV2.json";
 
 const Web3Context = createContext();
 
 export const useWeb3 = () => useContext(Web3Context);
+
+const GANACHE_CHAIN_IDS = ["1337", "5777"];
+const GANACHE_CHAIN_HEX = "0x539";
 
 export const Web3Provider = ({ children }) => {
   const [provider, setProvider] = useState(null);
@@ -15,134 +18,180 @@ export const Web3Provider = ({ children }) => {
   const [isClient, setIsClient] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const isConnecting = useRef(false);
 
   const connectWallet = async () => {
-    try {
-      if (window.ethereum) {
-        setIsLoading(true);
-        const web3Provider = new BrowserProvider(window.ethereum);
-        
-        // Request account access
-        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        const currentAccount = accounts[0];
-        
-        const web3Signer = await web3Provider.getSigner();
-        
-        // Get network instance
-        const networkId = await web3Provider.getNetwork().then(n => n.chainId.toString());
-        
-        // Enforce Truffle connection (1337) to fix "missing jobs" due to Ganache mismatch
-        if (networkId !== "1337" && networkId !== "5777") {
-          try {
-            await window.ethereum.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: '0x539' }], // 1337
-            });
-            return; // Exit here, page will reload via chainChanged listener
-          } catch (switchError) {
-            if (switchError.code === 4902) {
-              try {
-                await window.ethereum.request({
-                  method: 'wallet_addEthereumChain',
-                  params: [{
-                    chainId: '0x539',
-                    chainName: 'Ganache Local',
-                    rpcUrls: ['http://127.0.0.1:7545'],
-                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }
-                  }],
-                });
-                return;
-              } catch (addError) {
-                console.error("Failed to add Ganache network:", addError);
-              }
-            }
-          }
-        }
+    if (isConnecting.current) return;
+    isConnecting.current = true;
 
-        const networkData = FreelanceMarketplaceV2.networks[networkId] || FreelanceMarketplaceV2.networks["5777"]; // fallback to Ganache
-        
-        if (networkData) {
-          // Verify if contract actually exists on the connected RPC
-          let code = "0x";
-          try {
-            code = await web3Provider.getCode(networkData.address);
-          } catch (e) {
-            console.warn("Could not check contract code, ignoring...", e);
-            code = "skip"; // Bypass check if MetaMask throws transient RPC errors
-          }
-          
-          if (code === "0x") {
-            setError("Contract not found! MetaMask is connected to an empty network (likely port 9545 or 8545). Please open MetaMask settings and change the RPC URL for Localhost to http://127.0.0.1:7545");
+    try {
+      if (!window.ethereum) {
+        setError("MetaMask not detected. Please install MetaMask to use this app.");
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setError("");
+
+      const web3Provider = new BrowserProvider(window.ethereum);
+
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      if (!accounts || accounts.length === 0) {
+        setError("No accounts found. Please unlock MetaMask.");
+        setIsLoading(false);
+        return;
+      }
+      const currentAccount = accounts[0];
+
+      const network = await web3Provider.getNetwork();
+      const networkId = network.chainId.toString();
+
+      if (!GANACHE_CHAIN_IDS.includes(networkId)) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: GANACHE_CHAIN_HEX }],
+          });
+          return;
+        } catch (switchError) {
+          if (switchError.code === 4902) {
+            try {
+              await window.ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [{
+                  chainId: GANACHE_CHAIN_HEX,
+                  chainName: "Ganache Local",
+                  rpcUrls: ["http://127.0.0.1:7545"],
+                  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+                }],
+              });
+              return;
+            } catch (addError) {
+              setError("Could not add Ganache network to MetaMask. Please add it manually (RPC: http://127.0.0.1:7545, Chain ID: 1337).");
+              setIsLoading(false);
+              return;
+            }
+          } else if (switchError.code === 4001) {
+            setError("Please switch MetaMask to the Ganache Local network (Chain ID: 1337).");
+            setIsLoading(false);
+            return;
+          } else {
+            setError("Network switch failed: " + (switchError.message || "Unknown error"));
             setIsLoading(false);
             return;
           }
-
-          const contractInstance = new Contract(
-            networkData.address,
-            FreelanceMarketplaceV2.abi,
-            web3Signer
-          );
-          
-          setProvider(web3Provider);
-          setSigner(web3Signer);
-          setAccount(currentAccount);
-          setContract(contractInstance);
-          
-          // Fetch balance
-          const bal = await web3Provider.getBalance(currentAccount);
-          const balInEth = (Number(bal) / 1e18).toFixed(4); // simple conversion to ETH
-          setBalance(balInEth);
-          setError("");
-        } else {
-          setError("Smart contract not deployed to detected network.");
         }
-      } else {
-        setError("Please install MetaMask!");
       }
+
+      const networkData =
+        FreelanceMarketplaceV2.networks[networkId] ||
+        FreelanceMarketplaceV2.networks["5777"] ||
+        FreelanceMarketplaceV2.networks["1337"];
+
+      if (!networkData || !networkData.address) {
+        setError("Smart contract not deployed on this network. Run `truffle migrate --reset` and try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const isLocalNetwork = GANACHE_CHAIN_IDS.includes(networkId);
+      let code = "0x";
+      try {
+        code = await web3Provider.getCode(networkData.address);
+      } catch (codeErr) {
+        code = isLocalNetwork ? "skip" : "0x";
+      }
+
+      if (code === "0x") {
+        if (isLocalNetwork) {
+          setError(
+            `Contract not found at ${networkData.address}. ` +
+            "Ganache may have restarted and lost state. " +
+            "Run `truffle migrate --reset` in the /blockchain folder, then reconnect."
+          );
+        } else {
+          setError("Contract not found at the deployed address. Please redeploy the contract.");
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      const web3Signer = await web3Provider.getSigner();
+      const contractInstance = new Contract(
+        networkData.address,
+        FreelanceMarketplaceV2.abi,
+        web3Signer
+      );
+
+      const rawBalance = await web3Provider.getBalance(currentAccount);
+      const balInEth = parseFloat(formatEther(rawBalance)).toFixed(4);
+
+      setProvider(web3Provider);
+      setSigner(web3Signer);
+      setAccount(currentAccount);
+      setContract(contractInstance);
+      setBalance(balInEth);
+      setError("");
     } catch (err) {
-      console.error(err);
-      
-      // If MetaMask throws the rate-limit RPC error locally, give specific advice
-      if (err.message && err.message.includes("-32002")) {
-        setError("MetaMask is stabilizing its connection to the local RPC. Please wait 10 seconds and try again.");
+      if (err.code === -32002 || (err.message && err.message.includes("-32002"))) {
+        setError("MetaMask is busy. Please open MetaMask and approve the pending request.");
+      } else if (err.code === 4001) {
+        setError("Connection rejected. Please approve the MetaMask request to continue.");
       } else {
         setError("Failed to connect wallet: " + (err.shortMessage || err.message || "Unknown error"));
       }
     } finally {
       setIsLoading(false);
+      isConnecting.current = false;
     }
   };
 
-  useEffect(() => {
-    if (window.ethereum) {
-      window.ethereum.on("accountsChanged", async (accounts) => {
-        if (accounts.length > 0) {
-          setAccount(accounts[0]);
-          // Reconnect to refresh signer/contract/balance with new account
-          connectWallet();
-        } else {
-          setAccount("");
-          setBalance("0.0");
-          setSigner(null);
-          setContract(null);
-        }
-      });
-      
-      window.ethereum.on("chainChanged", () => {
-        window.location.reload();
-      });
+  const disconnectWallet = () => {
+    setAccount("");
+    setBalance("0.0");
+    setSigner(null);
+    setContract(null);
+    setProvider(null);
+    setError("");
+  };
 
-      // Optionally auto-connect if already connected
-      window.ethereum.request({ method: "eth_accounts" }).then(accounts => {
-        if (accounts.length > 0) {
+  useEffect(() => {
+    if (!window.ethereum) {
+      setIsLoading(false);
+      return;
+    }
+
+    const handleAccountsChanged = (accounts) => {
+      if (accounts.length === 0) {
+        disconnectWallet();
+      } else {
+        connectWallet();
+      }
+    };
+
+    const handleChainChanged = () => {
+      window.location.reload();
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
+
+    window.ethereum
+      .request({ method: "eth_accounts" })
+      .then((accounts) => {
+        if (accounts && accounts.length > 0) {
           connectWallet();
         } else {
           setIsLoading(false);
         }
-      });
-    } else {
-      setIsLoading(false);
-    }
+      })
+      .catch(() => setIsLoading(false));
+
+    return () => {
+      window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      window.ethereum.removeListener("chainChanged", handleChainChanged);
+    };
   }, []);
 
   return (
@@ -156,8 +205,9 @@ export const Web3Provider = ({ children }) => {
         error,
         isLoading,
         connectWallet,
+        disconnectWallet,
         isClient,
-        setIsClient
+        setIsClient,
       }}
     >
       {children}

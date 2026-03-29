@@ -1,10 +1,9 @@
-truffle develop
-compile
-migrate --reset
+truffle compile
+truffle migrate --reset
 
+Windows: copy blockchain\build\contracts\FreelanceMarketplaceV2.json frontend\src\contracts\FreelanceMarketplaceV2.json
 
 
 npx prisma db push
 npm run dev
 
-npm run dev

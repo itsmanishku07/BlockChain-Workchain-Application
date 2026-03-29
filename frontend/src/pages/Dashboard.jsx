@@ -2,77 +2,56 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useWeb3 } from "../context/Web3Context";
 import { useAuth } from "../context/AuthContext";
-import { Briefcase, CreditCard, Star, Activity, AlertCircle, Loader2, User } from "lucide-react";
+import { Briefcase, CreditCard, Star, AlertCircle, Loader2, User } from "lucide-react";
 import { formatEther } from "ethers";
 
 const Dashboard = () => {
-  const { account, contract, isClient, balance } = useWeb3();
+  const { account, contract, isClient } = useWeb3();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-
   const [activeJobs, setActiveJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUserJobs = async () => {
-      if (!contract || !account) {
-        setLoading(false);
-        return;
-      }
-
+      if (!contract || !account) { setLoading(false); return; }
       try {
         setLoading(true);
         const jobCount = await contract.jobCounter();
         const userJobs = [];
-
         for (let i = 1; i <= Number(jobCount); i++) {
           const job = await contract.jobs(i);
-          // If client, fetch jobs they posted
+          const jobStatus = Number(job.status);
+          const statusLabel = jobStatus === 0 ? "Open" : jobStatus === 1 ? "In Progress" : jobStatus === 2 ? "Completed" : jobStatus === 3 ? "Disputed" : jobStatus === 4 ? "Cancelled" : "Closed";
           if (isClient && job.client.toLowerCase() === account.toLowerCase()) {
-            const proposalCount = Number(job.status) === 0 ? (await contract.getJobProposals(i)).length : 0;
-            userJobs.push({
-              id: Number(job.id),
-              title: job.title,
-              proposals: proposalCount,
-              amount: formatEther(job.budget) + " ETH",
-              status: Number(job.status) === 0 ? "Open" : Number(job.status) === 1 ? "In Progress" : "Completed"
-            });
-          }
-          // If freelancer, ideally fetch jobs assigned to them, 
-          // but for MVP we match if they are assigned.
-          else if (!isClient && job.assignedFreelancer.toLowerCase() === account.toLowerCase()) {
-            userJobs.push({
-              id: Number(job.id),
-              title: job.title,
-              proposals: 0,
-              amount: formatEther(job.budget) + " ETH",
-              status: Number(job.status) === 0 ? "Open" : Number(job.status) === 1 ? "In Progress" : "Completed"
-            });
+            let proposalCount = 0;
+            if (jobStatus === 0) { try { const props = await contract.getJobProposals(i); proposalCount = props.length; } catch (_) {} }
+            userJobs.push({ id: Number(job.id), title: job.title, proposals: proposalCount, amount: formatEther(job.budget) + " ETH", status: statusLabel });
+          } else if (!isClient && job.assignedFreelancer !== "0x0000000000000000000000000000000000000000" && job.assignedFreelancer.toLowerCase() === account.toLowerCase()) {
+            userJobs.push({ id: Number(job.id), title: job.title, proposals: 0, amount: formatEther(job.budget) + " ETH", status: statusLabel });
           }
         }
-
-        setActiveJobs(userJobs.reverse()); // Newest first
+        setActiveJobs(userJobs.reverse());
       } catch (err) {
         console.error("Error fetching dashboard jobs:", err);
       } finally {
         setLoading(false);
       }
     };
-
     fetchUserJobs();
   }, [contract, account, isClient]);
 
   const stats = isClient
     ? [
-      { label: "Active Contracts", value: activeJobs.length, icon: Briefcase, color: "text-blue-500", bg: "bg-blue-100 dark:bg-blue-900/30" },
-      { label: "Total Spent", value: "0.00 ETH", icon: CreditCard, color: "text-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
-      { label: "Freelancers Hired", value: "0", icon: User, color: "text-purple-500", bg: "bg-purple-100 dark:bg-purple-900/30" },
-    ]
+        { label: "Active Contracts", value: activeJobs.length, icon: Briefcase, color: "text-blue-500", bg: "bg-blue-100 dark:bg-blue-900/30" },
+        { label: "Total Spent", value: "0.00 ETH", icon: CreditCard, color: "text-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
+        { label: "Freelancers Hired", value: "0", icon: User, color: "text-purple-500", bg: "bg-purple-100 dark:bg-purple-900/30" },
+      ]
     : [
-      { label: "Active Contracts", value: activeJobs.length, icon: Briefcase, color: "text-blue-500", bg: "bg-blue-100 dark:bg-blue-900/30" },
-      { label: "Total Earnings", value: "0.00 ETH", icon: CreditCard, color: "text-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
-      { label: "Reputation Score", value: "5.0", icon: Star, color: "text-amber-500", bg: "bg-amber-100 dark:bg-amber-900/30" },
-    ];
+        { label: "Active Contracts", value: activeJobs.length, icon: Briefcase, color: "text-blue-500", bg: "bg-blue-100 dark:bg-blue-900/30" },
+        { label: "Total Earnings", value: "0.00 ETH", icon: CreditCard, color: "text-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
+        { label: "Reputation Score", value: "5.0", icon: Star, color: "text-amber-500", bg: "bg-amber-100 dark:bg-amber-900/30" },
+      ];
 
   if (!account) {
     return (
@@ -88,12 +67,8 @@ const Dashboard = () => {
     <div className="animate-fade-in-up space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-black dark:text-white font-outfit">
-            {isClient ? "Client Dashboard" : "Freelancer Dashboard"}
-          </h1>
-          <p className="text-black dark:text-slate-400 mt-1">
-            Welcome back, {account.substring(0, 6)}...{account.substring(account.length - 4)}
-          </p>
+          <h1 className="text-3xl font-bold text-black dark:text-white font-outfit">{isClient ? "Client Dashboard" : "Freelancer Dashboard"}</h1>
+          <p className="text-black dark:text-slate-400 mt-1">Welcome back, {account.substring(0, 6)}...{account.substring(account.length - 4)}</p>
         </div>
         {!isClient && (
           <div className="flex items-center px-4 py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-xl font-semibold">
@@ -101,14 +76,10 @@ const Dashboard = () => {
           </div>
         )}
       </div>
-
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat, index) => (
           <div key={index} className="glass-card p-6 flex items-center space-x-4">
-            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
-              <stat.icon className="w-8 h-8" />
-            </div>
+            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}><stat.icon className="w-8 h-8" /></div>
             <div>
               <p className="text-sm font-medium text-black dark:text-slate-400">{stat.label}</p>
               <h3 className="text-2xl font-bold text-black dark:text-white">{stat.value}</h3>
@@ -116,18 +87,10 @@ const Dashboard = () => {
           </div>
         ))}
       </div>
-
-      {/* Recent Activity / Jobs */}
       <div className="glass-card overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700/50 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-black dark:text-white font-outfit">
-            {isClient ? "Your Posted Jobs" : "Your Active Contracts"}
-          </h2>
-          {isClient && (
-            <Link to="/post-job" className="text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline">
-              + Post New Job
-            </Link>
-          )}
+          <h2 className="text-xl font-bold text-black dark:text-white font-outfit">{isClient ? "Your Posted Jobs" : "Your Active Contracts"}</h2>
+          {isClient && <Link to="/post-job" className="text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline">+ Post New Job</Link>}
         </div>
         <div className="divide-y divide-slate-200 dark:divide-slate-700/50">
           {loading ? (
@@ -136,15 +99,11 @@ const Dashboard = () => {
               <span className="ml-2 text-black dark:text-slate-400">Loading Active Contracts...</span>
             </div>
           ) : activeJobs.length === 0 ? (
-            <div className="py-8 text-center text-black dark:text-slate-400">
-              You have no active contracts at this time.
-            </div>
+            <div className="py-8 text-center text-black dark:text-slate-400">You have no active contracts at this time.</div>
           ) : activeJobs.map(job => (
             <div key={job.id} className="py-4 px-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex flex-col md:flex-row justify-between items-start md:items-center">
               <div>
-                <h3 className="font-bold text-black dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer">
-                  {job.title}
-                </h3>
+                <h3 className="font-bold text-black dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer">{job.title}</h3>
                 <p className="text-sm text-black dark:text-slate-400 mt-1">
                   Budget: <span className="font-semibold text-black dark:text-slate-300">{job.amount}</span>
                   {isClient && job.status === "Open" && job.proposals > 0 && (
@@ -155,16 +114,10 @@ const Dashboard = () => {
                 </p>
               </div>
               <div className="flex items-center space-x-3">
-                <span className={`badge ${job.status === "In Progress" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" :
-                  job.status === "Completed" ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300" :
-                    "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300"
-                  }`}>
+                <span className={`badge ${job.status === "In Progress" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" : job.status === "Completed" ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300" : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300"}`}>
                   {job.status}
                 </span>
-                <button 
-                  onClick={() => navigate(job.status === "Open" ? `/jobs/${job.id}` : `/workspace/${job.id}`)}
-                  className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition lg:ml-4 text-black dark:text-white"
-                >
+                <button onClick={() => navigate(job.status === "Open" ? `/jobs/${job.id}` : `/workspace/${job.id}`)} className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition lg:ml-4 text-black dark:text-white">
                   View
                 </button>
               </div>

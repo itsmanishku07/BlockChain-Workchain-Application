@@ -31,7 +31,6 @@ const Home = () => {
 
   return (
     <div className="flex flex-col animate-fade-in-up">
-      {/* Hero Section */}
       <section className="relative py-20 lg:py-32 overflow-hidden text-center">
         <div className="absolute inset-x-0 top-1/2 -z-10 -translate-y-1/2 flex justify-center overflow-hidden [mask-image:radial-gradient(50%_50%_at_50%_50%,white,transparent)]">
           <svg className="w-[800px] h-[800px] text-blue-500/10 dark:text-blue-500/20" viewBox="0 0 1024 1024" aria-hidden="true">
@@ -69,7 +68,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
       <section className="py-12 border-y border-slate-200 dark:border-white/10 bg-white/40 dark:bg-slate-800/20 backdrop-blur-sm -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center text-black dark:text-white">
           <div>
@@ -91,7 +89,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Features Section */}
       <section className="py-24 max-w-7xl mx-auto w-full">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-black dark:text-white mb-4">Why WorkChain Pro?</h2>
@@ -115,7 +112,6 @@ const Home = () => {
         </div>
       </section>
       
-      {/* Ready to start */}
       <section className="py-20 mb-12">
         <div className="glass-card bg-gradient-to-br from-blue-600 to-indigo-700 dark:from-slate-800 dark:to-blue-900 border-none rounded-3xl p-10 md:p-16 text-center text-white shadow-2xl overflow-hidden relative">
           <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')]"></div>

@@ -29,9 +29,26 @@ const PostJob = () => {
       setError("Please connect your wallet first.");
       return;
     }
-    
+
     if (!isClient) {
       setError("You must be in Client mode to post a job.");
+      return;
+    }
+
+    const budgetNum = parseFloat(formData.budget);
+    if (!budgetNum || budgetNum <= 0) {
+      setError("Budget must be greater than 0 ETH.");
+      return;
+    }
+
+    const deadlineDays = parseInt(formData.deadlineDays);
+    if (!deadlineDays || deadlineDays < 1) {
+      setError("Deadline must be at least 1 day.");
+      return;
+    }
+
+    if (!formData.title.trim()) {
+      setError("Project title is required.");
       return;
     }
 
@@ -39,13 +56,10 @@ const PostJob = () => {
       setLoading(true);
       setError("");
 
-      const skillsArray = formData.skills.split(",").map(s => s.trim()).filter(s => s !== "");
-      // Calculate deadline timestamp
-      const deadlineTimestamp = Math.floor(Date.now() / 1000) + (parseInt(formData.deadlineDays) * 24 * 60 * 60);
+      const skillsArray = formData.skills.split(",").map((s) => s.trim()).filter((s) => s !== "");
+      const deadlineTimestamp = Math.floor(Date.now() / 1000) + deadlineDays * 24 * 60 * 60;
       const budgetWei = parseEther(formData.budget.toString());
 
-      // Call the smart contract function:
-      // createJob(string _title, string _description, string _category, string[] _skills, uint256 _deadline) payable
       const tx = await contract.createJob(
         formData.title,
         formData.description,
@@ -55,30 +69,30 @@ const PostJob = () => {
         { value: budgetWei }
       );
 
-      await tx.wait(); // Wait for confirmation
-      
-      // Optionally also save to the Postgres DB for faster indexing
-      try {
-        await fetch("http://localhost:5000/api/jobs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: formData.title,
-            description: formData.description,
-            budget: formData.budget + " ETH",
-            category: formData.category,
-            skills: skillsArray
-          })
-        });
-      } catch (dbErr) {
-        console.log("DB indexing failed, but blockchain tx succeeded.", dbErr);
-      }
+      await tx.wait();
 
-      // Navigate to dashboard or jobs page
+      // Mirror to Postgres for faster indexing (non-blocking)
+      const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      fetch(`${apiBase}/api/jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          budget: formData.budget + " ETH",
+          category: formData.category,
+          skills: skillsArray,
+        }),
+      }).catch((dbErr) => console.warn("DB indexing failed:", dbErr));
+
       navigate("/dashboard");
     } catch (err) {
       console.error(err);
-      setError(err.reason || err.message || "Failed to post job to the blockchain.");
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        setError("Transaction rejected. Please approve the transaction in MetaMask.");
+      } else {
+        setError(err.reason || err.message || "Failed to post job to the blockchain.");
+      }
     } finally {
       setLoading(false);
     }
@@ -116,13 +130,13 @@ const PostJob = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-bold text-black dark:text-slate-300 mb-1">Project Title</label>
+              <label className="block text-sm font-bold text-black dark:text-slate-300 mb-1">Job Title</label>
               <input 
                 required
                 type="text" 
                 name="title"
                 className="input-field" 
-                placeholder="e.g. Build a DeFi Dashboard"
+                placeholder=""
                 value={formData.title}
                 onChange={handleChange}
               />
@@ -135,7 +149,7 @@ const PostJob = () => {
                 name="description"
                 rows="4" 
                 className="input-field resize-none" 
-                placeholder="Describe your project requirements in detail..."
+                placeholder=""
                 value={formData.description}
                 onChange={handleChange}
               ></textarea>
@@ -167,7 +181,7 @@ const PostJob = () => {
                   min="0.001"
                   name="budget"
                   className="input-field" 
-                  placeholder="e.g. 1.5"
+                  placeholder=""
                   value={formData.budget}
                   onChange={handleChange}
                 />
@@ -197,7 +211,7 @@ const PostJob = () => {
                   min="1"
                   name="deadlineDays"
                   className="input-field" 
-                  placeholder="30"
+                  placeholder=""
                   value={formData.deadlineDays}
                   onChange={handleChange}
                 />

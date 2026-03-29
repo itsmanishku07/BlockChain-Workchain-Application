@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWeb3 } from "../context/Web3Context";
 import { formatEther } from "ethers";
-import { Briefcase, Loader2, CheckCircle, AlertCircle, ShieldCheck, DollarSign } from "lucide-react";
+import { Briefcase, Loader2, CheckCircle, AlertCircle, ShieldCheck, DollarSign, Clock } from "lucide-react";
 
 const Workspace = () => {
   const { id } = useParams();
@@ -55,12 +55,17 @@ const Workspace = () => {
   const handleFreelancerComplete = async () => {
     try {
       setActionLoading(true);
+      setError("");
       const tx = await contract.completeJob(id);
       await tx.wait();
       fetchJobDetails();
     } catch (err) {
       console.error(err);
-      setError("Failed to mark job as completed.");
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        setError("Transaction rejected.");
+      } else {
+        setError(err.reason || err.message || "Failed to mark job as completed.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -69,12 +74,17 @@ const Workspace = () => {
   const handleClientReleaseFunds = async () => {
     try {
       setActionLoading(true);
+      setError("");
       const tx = await contract.releaseFunds(id);
       await tx.wait();
       fetchJobDetails();
     } catch (err) {
       console.error(err);
-      setError("Failed to release funds.");
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        setError("Transaction rejected.");
+      } else {
+        setError(err.reason || err.message || "Failed to release funds.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -111,7 +121,6 @@ const Workspace = () => {
 
   return (
     <div className="max-w-4xl mx-auto py-8 animate-fade-in-up space-y-8">
-      {/* Workspace Header */}
       <div className="glass-card p-8">
         <div className="flex items-center space-x-4 mb-6">
           <div className="p-3 bg-blue-100 dark:bg-slate-800 rounded-xl text-blue-600 dark:text-blue-400">
@@ -145,12 +154,9 @@ const Workspace = () => {
         </div>
       </div>
 
-      {/* Action Area */}
       <div className="glass-card p-8">
          <h2 className="text-2xl font-bold text-black dark:text-white mb-6">Contract Actions</h2>
-         
          <div className="space-y-6">
-            {/* Freelancer Action: Mark Work Completed */}
             {isAssignedFreelancer && job.status === "In Progress" && (
                <div className="p-6 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-2xl">
                  <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-2">Submit Work</h3>
@@ -168,7 +174,6 @@ const Workspace = () => {
                </div>
             )}
 
-            {/* Client Action: Release Funds */}
             {isClientOwner && job.status === "Completed" && (
                <div className="p-6 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 rounded-2xl">
                  <h3 className="text-xl font-bold text-green-900 dark:text-green-100 mb-2">Release Payment</h3>
@@ -186,7 +191,6 @@ const Workspace = () => {
                </div>
             )}
 
-            {/* Waiting States */}
             {isClientOwner && job.status === "In Progress" && (
               <div className="text-center py-10 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4" />

@@ -44,7 +44,6 @@ const JobDetails = () => {
         createdAt: Number(jobData.createdAt) * 1000
       });
 
-      // Fetch proposals
       const proposalIds = await contract.getJobProposals(id);
       const fetchedProposals = [];
       for (let i = 0; i < proposalIds.length; i++) {
@@ -54,7 +53,7 @@ const JobDetails = () => {
           freelancer: p.freelancer,
           coverLetter: p.coverLetter,
           proposedAmount: formatEther(p.proposedAmount),
-          status: p.status.toString(), // 0: Pending, 1: Accepted, 2: Rejected
+          status: p.status.toString(),
         });
       }
       setProposals(fetchedProposals);
@@ -74,22 +73,27 @@ const JobDetails = () => {
   const handleApply = async () => {
     if (!contract || !account) return;
     if (isClient) {
-      setError("Clients cannot apply to jobs.");
+      setError("Clients cannot apply to jobs. Switch to Freelancer mode.");
       return;
     }
     try {
       setActionLoading(true);
+      setError("");
       const tx = await contract.submitProposal(
         id,
-        "I accept this job and agree to the terms.",
-        parseEther(job.budget), // Apply for the full budget
-        30 // default 30 days
+        "I am interested in this project and can deliver within the agreed timeline.",
+        parseEther(job.budget),
+        30
       );
       await tx.wait();
       fetchJobDetails();
     } catch (err) {
       console.error(err);
-      setError("Failed to apply for job.");
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        setError("Transaction rejected.");
+      } else {
+        setError(err.reason || err.message || "Failed to apply for job.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -99,12 +103,17 @@ const JobDetails = () => {
     if (!contract || !account) return;
     try {
       setActionLoading(true);
+      setError("");
       const tx = await contract.acceptProposal(proposalId);
       await tx.wait();
-      fetchJobDetails(); // this will refresh and show job as In Progress
+      fetchJobDetails();
     } catch (err) {
       console.error(err);
-      setError("Failed to accept proposal.");
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        setError("Transaction rejected.");
+      } else {
+        setError(err.reason || err.message || "Failed to accept proposal.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -114,12 +123,17 @@ const JobDetails = () => {
     if (!contract || !account) return;
     try {
       setActionLoading(true);
+      setError("");
       const tx = await contract.cancelJob(id);
       await tx.wait();
-      fetchJobDetails(); // will show as Cancelled
+      fetchJobDetails();
     } catch (err) {
       console.error(err);
-      setError("Failed to cancel job. Ensure it is still Open.");
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        setError("Transaction rejected.");
+      } else {
+        setError(err.reason || err.message || "Failed to cancel job. Ensure it is still Open.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -147,7 +161,6 @@ const JobDetails = () => {
 
   return (
     <div className="max-w-4xl mx-auto py-8 animate-fade-in-up space-y-8">
-      {/* Job Header */}
       <div className="glass-card p-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-6 flex space-x-2">
           <span className={`px-4 py-1.5 rounded-full text-sm font-semibold 
@@ -219,7 +232,6 @@ const JobDetails = () => {
         </div>
       </div>
 
-      {/* Proposals Section (Only for Client) */}
       {isJobOwner && job.status === "Open" && (
         <div className="glass-card p-8">
           <h2 className="text-2xl font-bold text-black dark:text-white mb-6">Applications Received ({proposals.length})</h2>

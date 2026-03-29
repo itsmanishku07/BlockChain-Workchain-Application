@@ -33,29 +33,38 @@ const Profile = () => {
       }
       try {
         setLoading(true);
-        const res = await fetch(`http://localhost:5000/api/profile/${currentUser.uid}`);
+        setError("");
+        const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const res = await fetch(`${apiBase}/api/profile/${currentUser.uid}`);
         if (res.ok) {
           const data = await res.json();
           setProfileData(data);
           if (data.skills) {
             setSkillsString(data.skills.join(", "));
           }
-        } else {
-          setProfileData(prev => ({
+        } else if (res.status === 404) {
+          setProfileData((prev) => ({
             ...prev,
             name: currentUser.displayName || "New User",
-            title: isClient ? "Web3 Project Manager" : "Full Stack Web3 Developer"
+            title: isClient ? "Web3 Project Manager" : "Full Stack Web3 Developer",
           }));
           setIsEditing(true);
+        } else {
+          throw new Error(`Server responded with ${res.status}`);
         }
       } catch (err) {
         console.error("Error fetching profile", err);
-        setError("Could not load profile. Ensure Postgres backend is running.");
+        setError("Could not load profile from server. You can still edit and save.");
+        setProfileData((prev) => ({
+          ...prev,
+          name: currentUser.displayName || "New User",
+        }));
+        setIsEditing(true);
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchProfile();
   }, [currentUser, isClient]);
 
@@ -67,23 +76,26 @@ const Profile = () => {
     try {
       setSaving(true);
       setError("");
-      
-      const skillsArray = skillsString.split(",").map(s => s.trim()).filter(s => s !== "");
+
+      const skillsArray = skillsString.split(",").map((s) => s.trim()).filter((s) => s !== "");
       const updatedData = { ...profileData, skills: skillsArray };
 
-      const res = await fetch(`http://localhost:5000/api/profile/${currentUser.uid}`, {
+      const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const res = await fetch(`${apiBase}/api/profile/${currentUser.uid}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedData)
+        body: JSON.stringify(updatedData),
       });
-      
-      if (!res.ok) throw new Error("Failed to save profile");
-      
+
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
       const saved = await res.json();
       setProfileData(saved);
+      setSkillsString(saved.skills ? saved.skills.join(", ") : skillsString);
       setIsEditing(false);
     } catch (err) {
-      setError("Failed to save profile. Make sure your Postgres backend is running.");
+      console.error(err);
+      setError("Failed to save profile. Make sure your Postgres backend is running on port 5000.");
     } finally {
       setSaving(false);
     }
