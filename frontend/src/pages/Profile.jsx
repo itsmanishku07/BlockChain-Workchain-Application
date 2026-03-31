@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { useWeb3 } from "../context/Web3Context";
 import { useAuth } from "../context/AuthContext";
-import { User, Award, Edit2, Save, Loader2, AlertCircle, ShieldAlert } from "lucide-react";
+import { User, Award, Edit2, Save, Loader2, AlertCircle, ShieldAlert, Star, Link2 } from "lucide-react";
 
 const Profile = () => {
-  const { account, isClient } = useWeb3();
+  const { account, isClient, contract } = useWeb3();
   const { currentUser } = useAuth();
   
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [onChainRating, setOnChainRating] = useState(null);
+  const [onChainJobsCompleted, setOnChainJobsCompleted] = useState(null);
+  const [syncingChain, setSyncingChain] = useState(false);
+  const [chainSynced, setChainSynced] = useState(false);
   
   const [profileData, setProfileData] = useState({
     name: "New User",
@@ -27,10 +31,7 @@ const Profile = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!currentUser) {
-        setLoading(false);
-        return;
-      }
+      if (!currentUser) { setLoading(false); return; }
       try {
         setLoading(true);
         setError("");
@@ -39,15 +40,9 @@ const Profile = () => {
         if (res.ok) {
           const data = await res.json();
           setProfileData(data);
-          if (data.skills) {
-            setSkillsString(data.skills.join(", "));
-          }
+          if (data.skills) setSkillsString(data.skills.join(", "));
         } else if (res.status === 404) {
-          setProfileData((prev) => ({
-            ...prev,
-            name: currentUser.displayName || "New User",
-            title: isClient ? "Web3 Project Manager" : "Full Stack Web3 Developer",
-          }));
+          setProfileData((prev) => ({ ...prev, name: currentUser.displayName || "New User", title: isClient ? "Web3 Project Manager" : "Full Stack Web3 Developer" }));
           setIsEditing(true);
         } else {
           throw new Error(`Server responded with ${res.status}`);
@@ -55,18 +50,54 @@ const Profile = () => {
       } catch (err) {
         console.error("Error fetching profile", err);
         setError("Could not load profile from server. You can still edit and save.");
-        setProfileData((prev) => ({
-          ...prev,
-          name: currentUser.displayName || "New User",
-        }));
+        setProfileData((prev) => ({ ...prev, name: currentUser.displayName || "New User" }));
         setIsEditing(true);
       } finally {
         setLoading(false);
       }
     };
-
     fetchProfile();
   }, [currentUser, isClient]);
+
+  useEffect(() => {
+    const fetchOnChainData = async () => {
+      if (!contract || !account || isClient) return;
+      try {
+        const ratingRaw = await contract.getFreelancerRating(account);
+        const r = Number(ratingRaw);
+        if (r > 0) setOnChainRating((r / 100).toFixed(1));
+        const profile = await contract.freelancerProfiles(account);
+        if (profile.exists) {
+          setOnChainJobsCompleted(Number(profile.jobsCompleted));
+          setChainSynced(true);
+        }
+      } catch (_) {}
+    };
+    fetchOnChainData();
+  }, [contract, account, isClient]);
+
+  const handleSyncToChain = async () => {
+    if (!contract || !account) return;
+    try {
+      setSyncingChain(true);
+      setError("");
+      const skillsArray = skillsString.split(",").map((s) => s.trim()).filter((s) => s !== "");
+      const profile = await contract.freelancerProfiles(account);
+      let tx;
+      if (profile.exists) {
+        tx = await contract.updateFreelancerProfile(profileData.name, profileData.bio || "", skillsArray);
+      } else {
+        tx = await contract.createFreelancerProfile(profileData.name, profileData.bio || "", skillsArray);
+      }
+      await tx.wait();
+      setChainSynced(true);
+    } catch (err) {
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") setError("Transaction rejected.");
+      else setError(err.reason || err.message || "Failed to sync profile to blockchain.");
+    } finally {
+      setSyncingChain(false);
+    }
+  };
 
   const handleChange = (e) => {
     setProfileData({ ...profileData, [e.target.name]: e.target.value });
@@ -219,6 +250,37 @@ const Profile = () => {
                         </span>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {!isClient && (
+                  <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-bold text-black dark:text-slate-300 mb-4 uppercase tracking-wide">On-Chain Stats</h3>
+                    <div className="flex flex-wrap gap-4">
+                      {onChainRating && (
+                        <div className="flex items-center gap-2 bg-yellow-50 dark:bg-yellow-900/20 px-4 py-2 rounded-xl border border-yellow-200 dark:border-yellow-800">
+                          <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                          <span className="font-bold text-black dark:text-white">{onChainRating}/5.0</span>
+                          <span className="text-xs text-slate-500">Rating</span>
+                        </div>
+                      )}
+                      {onChainJobsCompleted !== null && (
+                        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-xl border border-blue-200 dark:border-blue-800">
+                          <Award className="w-4 h-4 text-blue-500" />
+                          <span className="font-bold text-black dark:text-white">{onChainJobsCompleted}</span>
+                          <span className="text-xs text-slate-500">Jobs Completed</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleSyncToChain}
+                      disabled={syncingChain}
+                      className="mt-4 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm transition-all"
+                    >
+                      {syncingChain ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                      {chainSynced ? "Re-sync Profile to Blockchain" : "Sync Profile to Blockchain"}
+                    </button>
+                    {chainSynced && <p className="text-xs text-green-600 dark:text-green-400 mt-2">Profile is synced on-chain.</p>}
                   </div>
                 )}
               </div>

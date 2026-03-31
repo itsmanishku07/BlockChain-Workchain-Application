@@ -58,6 +58,8 @@ const Jobs = () => {
     );
   };
 
+  const [sortBy, setSortBy] = useState("newest");
+
   const filteredJobs = availableJobs.filter((j) => {
     const matchesSearch =
       j.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -66,6 +68,10 @@ const Jobs = () => {
     const matchesCategory =
       selectedCategories.length === 0 || selectedCategories.includes(j.category);
     return matchesSearch && matchesCategory;
+  }).sort((a, b) => {
+    if (sortBy === "highest") return parseFloat(b.budget) - parseFloat(a.budget);
+    if (sortBy === "lowest") return parseFloat(a.budget) - parseFloat(b.budget);
+    return new Date(b.createdAt) - new Date(a.createdAt);
   });
 
   return (
@@ -149,6 +155,15 @@ const Jobs = () => {
             <h2 className="text-lg font-medium text-black dark:text-slate-300">
               {loading ? "Loading..." : `Showing ${filteredJobs.length} job${filteredJobs.length !== 1 ? "s" : ""}`}
             </h2>
+            <select
+              className="bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm dark:text-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="newest">Newest First</option>
+              <option value="highest">Highest Budget</option>
+              <option value="lowest">Lowest Budget</option>
+            </select>
           </div>
 
           <div className="space-y-4">
